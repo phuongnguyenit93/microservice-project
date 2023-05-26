@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.phuong.orderservice.dto.InventoryResponse;
+import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +27,8 @@ public class OrderService {
     @Autowired
     WebClient.Builder webClientBuilder;
 
-    public void placeOrder(OrderRequest orderRequest) {
+    @Transactional
+    public String placeOrder(OrderRequest orderRequest) {
         Order order = new Order();
         order.setOrderNumber(UUID.randomUUID().toString());
         
@@ -48,11 +50,13 @@ public class OrderService {
                     .block(); // Web client will make a synchronous request
 
         // Check every reponse is true or not
-        Boolean isInStock = Arrays.stream(inventoryResponsesArray)
-                .allMatch(InventoryResponse::isInStock);
+        assert inventoryResponsesArray != null;
+        boolean isInStock = Arrays.stream(inventoryResponsesArray)
+                    .allMatch(InventoryResponse::isInStock);
 
         if (isInStock) {
             orderRepository.save(order);
+            return "Order Placed Successfully";
         } else {
             throw new IllegalArgumentException("Product out of stock. Please try again later");
         }

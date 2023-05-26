@@ -1,7 +1,7 @@
 package com.phuong.discoveryserver.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
-
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -9,13 +9,16 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractAuthenticationFilterConfigurer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+
+import javax.servlet.http.HttpSessionEvent;
+import javax.servlet.http.HttpSessionListener;
 
 @EnableWebSecurity
 @Configuration
@@ -25,43 +28,62 @@ public class SecurityConfig{
     // Vì WebSecurityConfigurerAdapter đã deprecated nên ta sẽ làm theo cách khác
     // https://spring.io/blog/2022/02/21/spring-security-without-the-websecurityconfigureradapter
 
+    // Get the username value from application.properties
+    @Value("${eureka.username}")
+    private String username;
+
+    @Value("${eureka.password}")
+    private String password;
 
     @Bean
-    @Autowired
-    public UserDetailsService userDetailsService(BCryptPasswordEncoder bCryptPasswordEncoder) {
+    public UserDetailsService userDetailsService() {
         InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
-        manager.createUser(User.withUsername("user")
-                .password(bCryptPasswordEncoder.encode("user"))
+        manager.createUser(User.withUsername(username)
+                .password(password)
                 .roles("USER")
                 .build());
         manager.createUser(User.withUsername("admin")
-                .password(bCryptPasswordEncoder.encode("admin"))
+                .password("admin")
                 .roles("USER","MOD","ADMIN")
                 .build());
         manager.createUser(User.withUsername("moderator")
-                .password(bCryptPasswordEncoder.encode("moderator"))
+                .password("moderator")
                 .roles("MOD","USER")
                 .build());
 
-        // Khi muốn dùng từ database , phải tạo 2 bảng là users và authorities . Chi tiết xem tại doc của class tại spring
-        // thay manager = users khi muốn lấy list bằng database
         return manager;
     }
 
     @Bean
     @Autowired
-    public AuthenticationManager authenticationManager(HttpSecurity http, BCryptPasswordEncoder bCryptPasswordEncoder, UserDetailsService userDetailsService)
+    public AuthenticationManager authenticationManager(HttpSecurity http, PasswordEncoder passwordEncoder, UserDetailsService userDetailsService)
             throws Exception {
         return http.getSharedObject(AuthenticationManagerBuilder.class)
                 .userDetailsService(userDetailsService)
-                .passwordEncoder(bCryptPasswordEncoder)
+                .passwordEncoder(passwordEncoder)
                 .and()
                 .build();
     }
 
     @Bean
-    public BCryptPasswordEncoder bCryptPasswordEncoder() {
-        return new BCryptPasswordEncoder();
+    public HttpSessionListener httpSessionListener() {
+        return new HttpSessionListener() {
+            @Override
+            public void sessionCreated(HttpSessionEvent ev) {
+                System.out.println("Session created");
+            }
+
+            @Override
+            public void sessionDestroyed(HttpSessionEvent ev) {
+                System.out.println("Session destroyed");
+            }
+        };
+    }
+
+    // If you need to change type Crypt Password type, please change here
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoEncoderPassword.getInstance();
     }
 
     // permitAll() : Cho phép tất cả phía trước
@@ -73,13 +95,16 @@ public class SecurityConfig{
         http
                 .authorizeHttpRequests(authorizeRequests ->
                         authorizeRequests
+                                .antMatchers("/session/**").permitAll()
                                 .anyRequest().authenticated()
                                 //.antMatchers("/actuator/**").hasRole("ADMIN")
                 )
                 .cors(AbstractHttpConfigurer::disable)
                 .csrf(AbstractHttpConfigurer::disable)
-                .httpBasic().and().logout();
-
+                .httpBasic()
+                .and().formLogin()
+                .and().logout().logoutUrl("/session/logout").invalidateHttpSession(true).deleteCookies("JSESSIONID").logoutSuccessUrl("/")
+        ;
         return http.build();
     }
 }

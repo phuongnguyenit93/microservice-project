@@ -2,6 +2,7 @@ package com.phuong.inventoryservice.service;
 
 import com.phuong.inventoryservice.dto.InventoryResponse;
 import com.phuong.inventoryservice.model.Inventory;
+import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,8 +18,9 @@ public class InventoryService {
     InventoryRepository inventoryRepository;
 
     @Transactional(readOnly = true)
+    @SneakyThrows
     public List<InventoryResponse> isInStock(List <String> skuCode) {
-        System.out.println(skuCode);
+        Thread.sleep(5000);
         return inventoryRepository.findBySkuCodeIn(skuCode)
                 .stream()
                 .map(inventory ->
