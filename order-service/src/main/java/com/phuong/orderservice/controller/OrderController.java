@@ -27,19 +27,17 @@ public class OrderController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @CircuitBreaker(name = "inventory", fallbackMethod = "fallbackMethod")
-    @TimeLimiter(name = "inventory", fallbackMethod = "timeLimitFail")
+    @TimeLimiter(name = "inventory")
     @Retry(name = "inventory")
     public CompletableFuture <String> placeOrder(@RequestBody OrderRequest orderRequest) {
         return CompletableFuture.supplyAsync(() -> orderService.placeOrder(orderRequest));
     }
 
     // Have same return type , same parameter type and adding RuntimeException error parameter
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public CompletableFuture <String> fallbackMethod(OrderRequest orderRequest, RuntimeException runtimeException) {
         return CompletableFuture.supplyAsync (() -> "Something wrong. Please order after some time");
     }
 
-    @ResponseStatus(HttpStatus.BAD_GATEWAY)
     public CompletableFuture <String> timeLimitFail(OrderRequest orderRequest, TimeoutException timeoutException) {
         return CompletableFuture.supplyAsync (() -> "Timeout. Please try again later");
     }
